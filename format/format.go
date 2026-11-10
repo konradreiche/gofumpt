@@ -89,6 +89,12 @@ type Extra struct {
 	// BalanceCalls places a multi-line call's closing parenthesis on its
 	// own line when the opening parenthesis ends a line.
 	BalanceCalls bool
+
+	// SplitStructFields places each keyed struct literal field on its own line,
+	// including in literals which were originally on a single line.
+	// Without type information, named types with identifier keys are assumed
+	// to be structs; explicitly typed maps and arrays are excluded.
+	SplitStructFields bool
 }
 
 func (e *Extra) String() string {
@@ -102,6 +108,9 @@ func (e *Extra) String() string {
 	if e.BalanceCalls {
 		active = append(active, "balance_calls")
 	}
+	if e.SplitStructFields {
+		active = append(active, "split_struct_fields")
+	}
 	return strings.Join(active, ",")
 }
 
@@ -110,6 +119,7 @@ func (e *Extra) Set(v string) error {
 		e.GroupParams = true
 		e.ClotheReturns = true
 		e.BalanceCalls = true
+		e.SplitStructFields = true
 		return nil
 	}
 	*e = Extra{}
@@ -124,6 +134,8 @@ func (e *Extra) Set(v string) error {
 			e.ClotheReturns = true
 		case "balance_calls":
 			e.BalanceCalls = true
+		case "split_struct_fields":
+			e.SplitStructFields = true
 		default:
 			return fmt.Errorf("unknown rule: %q", s)
 		}
@@ -1296,6 +1308,21 @@ func (f *fumpter) applyPost(c *astutil.Cursor) {
 			// doesn't have elements
 			break
 		}
+		if f.Extra.SplitStructFields && isKeyedStructLiteral(node) {
+			f.addNewline(node.Lbrace + 1)
+			for i, elem := range node.Elts[1:] {
+				if f.Line(elem.Pos()) == f.Line(node.Elts[i].End()) {
+					f.addNewline(elem.Pos())
+				}
+			}
+			lastEnd := node.Elts[len(node.Elts)-1].End()
+			if comment := f.inlineComment(lastEnd, node.Rbrace); comment != nil {
+				lastEnd = comment.End()
+			}
+			if f.Line(lastEnd) == f.Line(node.Rbrace) {
+				f.addNewline(node.Rbrace)
+			}
+		}
 		openLine := f.Line(node.Lbrace)
 		if openLine == f.Line(node.Rbrace) {
 			// all in a single line
@@ -1431,6 +1458,25 @@ func (f *fumpter) applyPost(c *astutil.Cursor) {
 			lastEnd = decl.End()
 		}
 	}
+}
+
+// isKeyedStructLiteral recognizes struct literals without type information.
+// Elided types may also be structs, but explicit map and array types are not.
+func isKeyedStructLiteral(node *ast.CompositeLit) bool {
+	switch ast.Unparen(node.Type).(type) {
+	case *ast.MapType, *ast.ArrayType:
+		return false
+	}
+	for _, elem := range node.Elts {
+		kv, ok := elem.(*ast.KeyValueExpr)
+		if !ok {
+			return false
+		}
+		if _, ok := kv.Key.(*ast.Ident); !ok {
+			return false
+		}
+	}
+	return len(node.Elts) > 0
 }
 
 func (f *fumpter) splitLongLine(c *astutil.Cursor) {

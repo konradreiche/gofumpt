@@ -524,6 +524,27 @@ result := compute(
 
 </details>
 
+**Keyed struct literals should have one field-value pair per line (`-extra=split_struct_fields`)**
+
+This also splits single-line fields. Empty and positional literals are unchanged.
+Without type information, literals with identifier keys are assumed to be structs,
+including those with elided types. Explicit map and array/slice literals are excluded.
+
+<details><summary><i>Example</i></summary>
+
+```go
+point := Point{X: 1, Y: 2}
+```
+
+```go
+point := Point{
+	X: 1,
+	Y: 2,
+}
+```
+
+</details>
+
 ### Installation
 
 `gofumpt` is a replacement for `gofmt`, so you can simply `go install` it as
