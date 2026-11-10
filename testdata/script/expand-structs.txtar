@@ -1,0 +1,174 @@
+cp foo.go direct.go
+exec gofumpt -w foo.go
+cmp foo.go default.golden
+exec gofumpt -extra=expand_structs -w foo.go
+cmp foo.go expanded.golden
+exec gofumpt -extra=expand_structs -d expanded.golden
+! stdout .
+exec gofmt -d expanded.golden
+! stdout .
+exec gofumpt -extra -w foo.go
+cmp foo.go expanded.golden
+exec gofumpt -extra=expand_structs -w direct.go
+exec gofumpt -extra=expand_structs -d direct.go
+! stdout .
+exec gofmt -d direct.go
+! stdout .
+exec gofumpt -extra=expand_structs -w scoped.go
+cmp scoped.go scoped.go.golden
+exec gofumpt -extra=expand_structs -d scoped.go.golden
+! stdout .
+exec gofmt -d scoped.go.golden
+! stdout .
+
+-- foo.go --
+package p
+
+var single = T{A: 1}
+var multiple = T{A: 1, B: 2, C: 3}
+var partial = T{
+	A: 1, B: 2,
+	C: 3, D: 4,
+}
+var nested = T{A: T{B: 2, C: 3}, B: []T{{A: 1, B: 2}}}
+var anonymous = struct{ A, B int }{A: 1, B: 2}
+var generic = pkg.T[int]{A: 1, B: 2}
+var empty = T{}
+var positional = T{1, 2}
+var mapping = map[string]int{"a": 1, "b": 2}
+var identifiers = map[int]int{a: 1, b: 2}
+var slice = []int{a: 1, b: 2}
+var array = [...]int{a: 1, b: 2}
+var comments = T{A: 1, /* between */ B: 2, C: 3 /* last */}
+var trailing = T{
+	A: 1, B: 2, // trailing
+	// leading
+	C: 3, D: 4, // last
+}
+-- scoped.go --
+package p
+
+func f() { use(&T{A: 1, B: 2}) }
+
+func g() {
+	x := T{ /* opening */ A: 1, B: 2}
+	y := T{A: func() int {
+		return 1
+	}(), B: 2}
+	z := map[string]T{"key": {A: 1, B: 2}}
+	use(x, y, z)
+}
+-- scoped.go.golden --
+package p
+
+func f() {
+	use(&T{
+		A: 1,
+		B: 2,
+	})
+}
+
+func g() {
+	x := T{
+		/* opening */ A: 1,
+		B:               2,
+	}
+	y := T{
+		A: func() int {
+			return 1
+		}(),
+		B: 2,
+	}
+	z := map[string]T{"key": {
+		A: 1,
+		B: 2,
+	}}
+	use(x, y, z)
+}
+-- default.golden --
+package p
+
+var (
+	single   = T{A: 1}
+	multiple = T{A: 1, B: 2, C: 3}
+	partial  = T{
+		A: 1, B: 2,
+		C: 3, D: 4,
+	}
+)
+
+var (
+	nested      = T{A: T{B: 2, C: 3}, B: []T{{A: 1, B: 2}}}
+	anonymous   = struct{ A, B int }{A: 1, B: 2}
+	generic     = pkg.T[int]{A: 1, B: 2}
+	empty       = T{}
+	positional  = T{1, 2}
+	mapping     = map[string]int{"a": 1, "b": 2}
+	identifiers = map[int]int{a: 1, b: 2}
+	slice       = []int{a: 1, b: 2}
+	array       = [...]int{a: 1, b: 2}
+	comments    = T{A: 1 /* between */, B: 2, C: 3 /* last */}
+	trailing    = T{
+		A: 1, B: 2, // trailing
+		// leading
+		C: 3, D: 4, // last
+	}
+)
+-- expanded.golden --
+package p
+
+var (
+	single = T{
+		A: 1,
+	}
+	multiple = T{
+		A: 1,
+		B: 2,
+		C: 3,
+	}
+	partial = T{
+		A: 1,
+		B: 2,
+		C: 3,
+		D: 4,
+	}
+)
+
+var (
+	nested = T{
+		A: T{
+			B: 2,
+			C: 3,
+		},
+		B: []T{{
+			A: 1,
+			B: 2,
+		}},
+	}
+	anonymous = struct{ A, B int }{
+		A: 1,
+		B: 2,
+	}
+	generic = pkg.T[int]{
+		A: 1,
+		B: 2,
+	}
+	empty       = T{}
+	positional  = T{1, 2}
+	mapping     = map[string]int{"a": 1, "b": 2}
+	identifiers = map[int]int{a: 1, b: 2}
+	slice       = []int{a: 1, b: 2}
+	array       = [...]int{a: 1, b: 2}
+	comments    = T{
+		A: 1, /* between */
+		B: 2,
+		C: 3, /* last */
+	}
+	trailing = T{
+		A: 1,
+		B: 2, // trailing
+		// leading
+		C: 3,
+		D: 4, // last
+	}
+)
